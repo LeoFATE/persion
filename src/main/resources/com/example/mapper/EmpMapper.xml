@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.mapper.EmpMapper">
+
+    <resultMap id="EmpResult" type="com.example.entity.Emp">
+        <id column="e_id" property="eId"/>
+        <result column="e_name" property="eName"/>
+        <result column="e_d_id" property="eDId"/>
+        <result column="e_hire_date" property="eHireDate"/>
+        <result column="e_sex" property="eSex"/>
+    </resultMap>
+
+    <insert id="insertEmp" parameterType="com.example.entity.Emp" useGeneratedKeys="true" keyProperty="eId">
+        INSERT INTO ems.t_emp (e_name, e_d_id, e_hire_date, e_sex)
+        VALUES (#{eName}, #{eDId}, #{eHireDate}, #{eSex})
+    </insert>
+
+    <select id="selectAll" resultMap="EmpResult">
+        SELECT e_id, e_name, e_d_id, e_hire_date, e_sex FROM ems.t_emp
+    </select>
+
+    <!-- 分页查询，offset 从 0 开始, limit 为页大小 -->
+    <select id="selectPage" resultMap="EmpResult" parameterType="map">
+        SELECT e_id, e_name, e_d_id, e_hire_date, e_sex FROM ems.t_emp
+        ORDER BY e_id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="int">
+        SELECT COUNT(1) FROM ems.t_emp
+    </select>
+
+    <update id="updateEmp" parameterType="com.example.entity.Emp">
+        UPDATE ems.t_emp
+        SET e_name = #{eName}, e_d_id = #{eDId}, e_hire_date = #{eHireDate}, e_sex = #{eSex}
+        WHERE e_id = #{eId}
+    </update>
+
+</mapper>

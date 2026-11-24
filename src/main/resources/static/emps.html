@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EMS - 员工列表</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <style>
+    /* 页面左右边距增加 10% */
+    body { font-family: Arial, Helvetica, sans-serif; padding: 20px 10%; }
+    /* 表格居中显示并让单元格内容居中 */
+    table { border-collapse: collapse; width: 100%; margin: 0 auto; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background: #f4f4f4; }
+    .toolbar { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="toolbar">
+      <button @click="back">返回新增页面</button>
+      <button @click="load" style="margin-left:8px">刷新</button>
+      <label style="margin-left:12px">每页条数
+        <select :value="pageSize" @change="changePageSize($event.target.value)" style="margin-left:6px">
+          <option value="5">5</option>
+          <option value="10">10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+        </select>
+      </label>
+    </div>
+    <h2>员工列表</h2>
+    <div v-if="error" style="color:#b00020">{{ error }}</div>
+    <table v-if="emps.length">
+      <thead>
+        <tr>
+          <th>姓名</th>
+          <th>部门</th>
+          <th>入职日期</th>
+          <th>性别</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="emp in emps" :key="emp.eId">
+          <td>{{ emp.eName }}</td>
+          <td>{{ deptMap[emp.eDId] ? deptMap[emp.eDId] : emp.eDId }}</td>
+          <td>{{ formatDate(emp.eHireDate) }}</td>
+          <td>{{ emp.eSex == 1 ? '男' : '女' }}</td>
+          <td><button @click="openEdit(emp)">修改</button></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div v-if="emps.length" style="margin-top:12px; display:flex; align-items:center; justify-content:center">
+      <button @click="prevPage" :disabled="currentPage<=1">上一页</button>
+      <span style="margin:0 12px">第 <input type="number" v-model.number="currentPage" min="1" :max="totalPages" style="width:60px; text-align:center"> / {{ totalPages }} 页（共 {{ total }} 条）</span>
+      <button @click="nextPage" :disabled="currentPage>=totalPages">下一页</button>
+    </div>
+
+    <div v-else>暂无数据</div>
+
+    <!-- 编辑模态框 -->
+    <div v-if="editVisible" class="modal-overlay">
+      <div class="modal">
+        <h3>修改员工 #{{ editForm.eName }}</h3>
+        <div class="form-row"><label>姓名</label><input v-model="editForm.eName" /></div>
+        <div class="form-row"><label>入职日期</label><input type="date" v-model="editForm.eHireDate" /></div>
+        <div class="form-row"><label>部门</label>
+          <select v-model="editForm.eDId">
+            <option disabled value="">-- 请选择部门 --</option>
+            <option value="none">无部门</option>
+            <option v-for="(name,id) in deptMap" :key="id" :value="id">{{ name }}</option>
+          </select>
+        </div>
+        <div class="form-row"><label>性别</label>
+          <select v-model="editForm.eSex"><option value="">-- 请选择 --</option><option value="1">男</option><option value="0">女</option></select>
+        </div>
+        <div style="margin-top:12px">
+          <button @click="saveEdit">保存</button>
+          <button @click="cancelEdit" style="margin-left:8px">取消</button>
+        </div>
+        <div v-if="editError" style="color:#b00020; margin-top:8px">{{ editError }}</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    new Vue({
+      el: '#app',
+      data: function() {
+        return {
+          emps: [],
+          error: '',
+          editVisible: false,
+          editForm: null,
+          editError: '',
+          deptMap: {},
+          // pagination
+          currentPage: 1,
+          pageSize: 10,
+          total: 0
+        };
+      },
+      created: function() {
+        this.load();
+      },
+      computed: {
+        totalPages: function() {
+          return Math.max(1, Math.ceil(this.total / this.pageSize));
+        }
+      },
+      methods: {
+        load: async function() {
+          this.error = '';
+          try {
+            // load depts mapping first
+            const dres = await axios.get('/api/emps/depts');
+            this.deptMap = dres.data || {};
+            const res = await axios.get('/api/emps', { params: { page: this.currentPage, size: this.pageSize } });
+            // response: { total, page, size, data }
+            this.total = res.data.total || 0;
+            this.pageSize = res.data.size || this.pageSize;
+            this.emps = res.data.data || [];
+            // ensure currentPage within bounds
+            this.currentPage = Math.min(Math.max(1, res.data.page || this.currentPage), this.total>0?Math.ceil(this.total/this.pageSize):1);
+          } catch (err) {
+            console.error(err);
+            this.error = (err.response && err.response.data) ? JSON.stringify(err.response.data) : err.message;
+          }
+        },
+        formatDate: function(d) {
+          if (!d) return '';
+          var s = String(d);
+          if (s.indexOf('T') !== -1) return s.split('T')[0];
+          return s;
+        },
+        back: function() {
+          window.location.href = '/';
+        },
+        openEdit: function(emp) {
+          this.editForm = {
+            eId: emp.eId,
+            eName: emp.eName,
+            eDId: emp.eDId == null ? '' : String(emp.eDId),
+            eHireDate: this.formatDate(emp.eHireDate),
+            eSex: emp.eSex
+          };
+          this.editError = '';
+          this.editVisible = true;
+        },
+        cancelEdit: function() {
+          this.editVisible = false;
+          this.editForm = null;
+        },
+        saveEdit: async function() {
+          this.editError = '';
+          if (!this.editForm || !this.editForm.eHireDate) {
+            this.editError = '入职日期为必填';
+            return;
+          }
+          var payload = {
+            e_name: this.editForm.eName,
+            e_hire_date: this.editForm.eHireDate,
+            e_d_id: (this.editForm.eDId && this.editForm.eDId !== 'none') ? Number(this.editForm.eDId) : null,
+            e_sex: this.editForm.eSex || null
+          };
+          try {
+            await axios.put('/api/emps/' + this.editForm.eId, payload);
+            this.editVisible = false;
+            this.load();
+          } catch (err) {
+            console.error(err);
+            this.editError = (err.response && err.response.data) ? JSON.stringify(err.response.data) : err.message;
+          }
+        },
+        // pagination controls
+        prevPage: function() {
+          if (this.currentPage > 1) { this.currentPage--; this.load(); }
+        },
+        nextPage: function() {
+          if (this.currentPage < this.totalPages) { this.currentPage++; this.load(); }
+        },
+        goToPage: function(p) {
+          var pi = Number(p);
+          if (!isNaN(pi) && pi >=1 && pi <= this.totalPages) { this.currentPage = pi; this.load(); }
+        },
+        // when page size changes
+        changePageSize: function(size) {
+          var s = Number(size);
+          if (!isNaN(s) && s > 0) {
+            this.pageSize = s;
+            this.currentPage = 1;
+            this.load();
+          }
+        }
+      }
+    });
+  </script>
+
+  <style>
+    .modal-overlay { position: fixed; left:0; top:0; right:0; bottom:0; background: rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; }
+    .modal { background:#fff; padding:18px 36px; border-radius:6px; width:420px; box-sizing: border-box; }
+    .form-row { margin-bottom:8px }
+    .form-row label { display:block; font-weight:600; margin-bottom:4px }
+    .form-row input, .form-row select { width:100%; padding:8px }
+    .page-controls { margin-top:12px; display:flex; align-items:center; justify-content:center; gap:12px }
+  </style>
+</body>
+</html>
